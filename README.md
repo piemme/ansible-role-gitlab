@@ -111,6 +111,75 @@ If you are running GitLab behind a reverse proxy, you may wish to terminate SSL 
 
 If you want to enable [2-way SSL Client Authentication](https://docs.gitlab.com/omnibus/settings/nginx.html#enable-2-way-ssl-client-authentication), set `gitlab_nginx_ssl_verify_client` and add a path to the client certificate in `gitlab_nginx_ssl_client_certificate`.
 
+    gitlab_nginx_worker_processes: 4
+    gitlab_nginx_worker_connections: 10240
+
+Gitlab nginx worker settings.
+
+    gitlab_default_theme: 2
+
+If you want to set default theme for all users.
+
+    gitlab_logrotate_enable: "true"
+    gitlab_logrotate_frequency: "daily"
+    gitlab_logrotate_size: ""
+    gitlab_logrotate_rotate: 30
+    gitlab_logrotate_compress: "compress"
+    gitlab_logrotate_method: "copytruncate"
+    gitlab_logrotate_postrotate: ""
+    gitlab_logrotate_dateformat: ""
+
+You can disable the built-in logrotate service if you want (enable by default).
+If you want to set some [Gitlab logrotate settings](https://docs.gitlab.com/omnibus/settings/logs.html#logrotate), you need to specify `gitlab_logrotate_enable: true`.
+
+    gitlab_svlogd_size: 200 * 1024 * 1024
+    gitlab_svlogd_num: 30
+    gitlab_svlogd_timeout: 24 * 60 * 60
+    gitlab_svlogd_filter: "gzip"
+    gitlab_svlogd_udp: ""
+    gitlab_svlogd_prefix: ""
+
+You can modify the [runit Logs](https://docs.gitlab.com/omnibus/settings/logs.html#runit-logs) with these svlogd settings.
+
+    gitlab_prometheus_monitoring_enable: 'true'
+
+To completely disable [Gitlab Prometheus](https://docs.gitlab.com/ce/administration/monitoring/prometheus), and all of it's exporters, set to false.
+
+    gitlab_monitor_enable: 'true'
+    gitlab_monitor_log_directory: '/var/log/gitlab/gitlab-monitor'
+    gitlab_monitor_home: '/var/opt/gitlab/gitlab-monitor'
+    gitlab_monitor_listen_address: 'localhost'
+    gitlab_monitor_listen_port: '9168'
+
+[GitLab monitor exporter](https://docs.gitlab.com/ce/administration/monitoring/prometheus/gitlab_monitor_exporter.html) configuration; if `gitlab_monitor_enable` is `true` the rest of the configuration could be set.
+
+    gitlab_prometheus_enable: 'true'
+    gitlab_prometheus_monitor_kubernetes: 'true'
+    gitlab_prometheus_username: 'gitlab-prometheus'
+    gitlab_prometheus_uid: ''
+    gitlab_prometheus_gid: ''
+    gitlab_prometheus_shell: '/bin/sh'
+    gitlab_prometheus_home: '/var/opt/gitlab/prometheus'
+    gitlab_prometheus_log_directory:  '/var/log/gitlab/prometheus'
+    gitlab_prometheus_scrape_interval: 15
+    gitlab_prometheus_scrape_timeout: 15
+    gitlab_prometheus_chunk_encoding_version : 2
+
+If you want to set some [Prometheus settings](https://docs.gitlab.com/ce/administration/monitoring/prometheus/) configuration; if `gitlab_prometheus_enable` is set the rest of the configuration could be set.
+
+    gitlab_prometheus_listen_address: 'localhost:9090'
+
+If you want to set the [port Prometheus listen](https://docs.gitlab.com/ce/administration/monitoring/prometheus/#changing-the-port-prometheus-listens-on). Could be useful to change with an IP if you use a platform for analytics and monitoring.
+
+    gitlab_packages_dependencies:
+      - openssh-server
+      - postfix
+      - curl
+      - openssl
+      - tzdata
+
+If you want to add or remove some packages dependencies.
+
 ## Dependencies
 
 None.

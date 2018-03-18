@@ -11,28 +11,64 @@ gitlab_rails['gitlab_email_display_name'] = "{{ gitlab_email_display_name }}"
 gitlab_rails['gitlab_email_reply_to'] = "{{ gitlab_email_reply_to }}"
 {% endif %}
 
+# Default Theme
+gitlab_rails['gitlab_default_theme'] = "{{ gitlab_default_theme | default('2') }}"
+
 # Whether to redirect http to https.
 nginx['redirect_http_to_https'] = {{ gitlab_redirect_http_to_https }}
 nginx['ssl_certificate'] = "{{ gitlab_ssl_certificate }}"
 nginx['ssl_certificate_key'] = "{{ gitlab_ssl_certificate_key }}"
 
 # The directory where Git repositories will be stored.
-git_data_dirs({"default" => "{{ gitlab_git_data_dir }}"})
+git_data_dirs({
+  "default": {
+    "path": "{{ gitlab_git_data_dir }}"
+  }
+})
+
 
 # The directory where Gitlab backups will be stored
 gitlab_rails['backup_path'] = "{{ gitlab_backup_path }}"
 
 # These settings are documented in more detail at
-# https://gitlab.com/gitlab-org/gitlab-ce/blob/master/config/gitlab.yml.example#L118
+# https://gitlab.com/gitlab-org/gitlab-ce/blob/a0a826ebdcb783c660dd40d8cb217db28a9d4998/config/gitlab.yml.example#L136
+# https://docs.gitlab.com/ce/administration/auth/how_to_configure_ldap_gitlab_ce/index.html
 gitlab_rails['ldap_enabled'] = {{ gitlab_ldap_enabled }}
-gitlab_rails['ldap_host'] = '{{ gitlab_ldap_host }}'
-gitlab_rails['ldap_port'] = {{ gitlab_ldap_port }}
-gitlab_rails['ldap_uid'] = '{{ gitlab_ldap_uid }}'
-gitlab_rails['ldap_method'] = '{{ gitlab_ldap_method}}' # 'ssl' or 'plain'
-gitlab_rails['ldap_bind_dn'] = '{{ gitlab_ldap_bind_dn }}'
-gitlab_rails['ldap_password'] = '{{ gitlab_ldap_password }}'
-gitlab_rails['ldap_allow_username_or_email_login'] = true
-gitlab_rails['ldap_base'] = '{{ gitlab_ldap_base }}'
+gitlab_rails['ldap_servers'] = YAML.load <<-'EOS' # remember to close this block with 'EOS' below
+   main: # 'main' is the GitLab 'provider ID' of this LDAP server
+     label: '{{ gitlab_ldap_label }}'
+     host: '{{ gitlab_ldap_host }}'
+     port: {{ gitlab_ldap_port }}
+     uid: '{{ gitlab_ldap_uid }}'
+     method: '{{ gitlab_ldap_method}}'
+     bind_dn: '{{ gitlab_ldap_bind_dn }}'
+     password: '{{ gitlab_ldap_password }}'
+     base: '{{ gitlab_ldap_base }}'
+     user_filter: '{{ gitlab_ldap_user_filter }}'
+     verify_certificates: {{gitlab_ldap_verify_certificate}}
+     active_directory: {{ gitlab_ldap_is_active_directory }}
+     allow_username_or_email_login: {{ gitlab_ldap_allow_login_user_or_email }}
+
+     # LDAP attributes that GitLab will use to create an account for the LDAP user.
+     # The specified attribute can either be the attribute name as a string (e.g. 'mail'),
+     # or an array of attribute names to try in order (e.g. ['mail', 'email']).
+     # Note that the user's LDAP login will always be the attribute specified as `uid` above.
+     attributes:
+       # The username will be used in paths for the user's own projects
+       # (like `gitlab.example.com/username/project`) and when mentioning
+       # them in issues, merge request and comments (like `@username`).
+       # If the attribute specified for `username` contains an email address,
+       # the GitLab username will be the part of the email address before the '@'.
+       username: ['uid', 'userid', 'sAMAccountName']
+       email:    ['userPrincipalName']
+
+       # If no full name could be found at the attribute specified for `name`,
+       # the full name is determined using the attributes specified for
+       # `first_name` and `last_name`.
+       name:       'cn'
+       first_name: 'givenName'
+       last_name:  'sn'
+EOS
 
 # GitLab Nginx
 ## See https://gitlab.com/gitlab-org/omnibus-gitlab/blob/master/doc/settings/nginx.md
@@ -40,7 +76,19 @@ gitlab_rails['ldap_base'] = '{{ gitlab_ldap_base }}'
 nginx['listen_port'] = "{{ gitlab_nginx_listen_port }}"
 {% endif %}
 {% if gitlab_nginx_listen_https is defined %}
-nginx['listen_https'] = "{{ gitlab_nginx_listen_https }}"
+nginx['listen_https'] = {{ gitlab_nginx_listen_https }}
+{% endif %}
+{% if gitlab_nginx_worker_processes is defined %}
+nginx['worker_processes'] = "{{ gitlab_nginx_worker_processes }}"
+{% endif %}
+{% if gitlab_nginx_worker_connections is defined %}
+nginx['worker_connections'] = "{{ gitlab_nginx_worker_connections }}"
+{% endif %}
+{% if gitlab_nginx_worker_processes is defined %}
+nginx['worker_processes'] = "{{ gitlab_nginx_worker_processes }}"
+{% endif %}
+{% if gitlab_nginx_worker_connections is defined %}
+nginx['worker_connections'] = "{{ gitlab_nginx_worker_connections }}"
 {% endif %}
 
 # Use smtp instead of sendmail/postfix
@@ -49,10 +97,13 @@ nginx['listen_https'] = "{{ gitlab_nginx_listen_https }}"
 gitlab_rails['smtp_enable'] = {{ gitlab_smtp_enable }}
 gitlab_rails['smtp_address'] = '{{ gitlab_smtp_address }}'
 gitlab_rails['smtp_port'] = {{ gitlab_smtp_port }}
+{% if gitlab_smtp_authentication != 'false' %}
 gitlab_rails['smtp_user_name'] = '{{ gitlab_smtp_user_name }}'
 gitlab_rails['smtp_password'] = '{{ gitlab_smtp_password }}'
+{% endif %}
 gitlab_rails['smtp_domain'] = '{{ gitlab_smtp_domain }}'
 gitlab_rails['smtp_authentication'] = '{{ gitlab_smtp_authentication }}'
+
 gitlab_rails['smtp_enable_starttls_auto'] = {{ gitlab_smtp_enable_starttls_auto }}
 gitlab_rails['smtp_tls'] = {{ gitlab_smtp_tls }}
 gitlab_rails['smtp_openssl_verify_mode'] = '{{ gitlab_smtp_openssl_verify_mode }}'
@@ -65,6 +116,75 @@ nginx['ssl_verify_client'] = "{{ gitlab_nginx_ssl_verify_client }}"
 {% endif %}
 {% if gitlab_nginx_ssl_client_certificate %}
 nginx['ssl_client_certificate'] = "{{ gitlab_nginx_ssl_client_certificate }}"
+{% endif %}
+{% if gitlab_prometheus_enable is defined or gitlab_prometheus_listen_address is defined %}
+
+# Prometheus
+# Docs: https://docs.gitlab.com/ce/administration/monitoring/prometheus/
+{% endif %}
+{% if gitlab_prometheus_enable is defined %}
+prometheus['enable'] = "{{ gitlab_prometheus_enable | default('true') }}"
+prometheus['monitor_kubernetes'] = "{{ gitlab_prometheus_monitor_kubernetes | default('true') }}"
+prometheus['username'] = "{{ gitlab_prometheus_username | default('gitlab-prometheus') }}"
+prometheus['uid'] = "{{ gitlab_prometheus_uid | default('') }}"
+prometheus['gid'] = "{{ gitlab_prometheus_gid | default('') }}"
+prometheus['shell'] = "{{ gitlab_prometheus_shell | default('/bin/sh') }}"
+prometheus['home'] = "{{ gitlab_prometheus_home | default('/var/opt/gitlab/prometheus') }}"
+prometheus['log_directory'] = "{{ gitlab_prometheus_log_directory | default('/var/log/gitlab/prometheus') }}"
+prometheus['scrape_interval'] = "{{ gitlab_prometheus_scrape_interval | default(15) }}"
+prometheus['scrape_timeout'] = "{{ gitlab_prometheus_scrape_timeout | default(15) }}"
+prometheus['chunk_encoding_version'] = "{{ gitlab_prometheus_chunk_encoding_version | default(2) }}"
+{% endif %}
+{% if gitlab_prometheus_listen_address is defined %}
+#! Advanced settings. Should be changed only if absolutely needed.
+prometheus['listen_address'] = "{{ gitlab_prometheus_listen_address | default('localhost:9090') }}"
+{% endif %}
+{% if gitlab_monitor_enable is defined %}
+
+# Prometheus Gitlab monitor
+# Docs: https://docs.gitlab.com/ce/administration/monitoring/prometheus/gitlab_monitor_exporter.html
+gitlab_monitor['enable'] = "{{ gitlab_monitor_enable | default('true') }}"
+gitlab_monitor['log_directory'] = "{{ gitlab_monitor_log_directory | default('/var/log/gitlab/gitlab-monitor') }}"
+gitlab_monitor['home'] = "{{ gitlab_monitor_home | default('/var/opt/gitlab/gitlab-monitor') }}"
+##! Advanced settings. Should be changed only if absolutely needed.
+gitlab_monitor['listen_address'] = "{{ gitlab_monitor_listen_address | default('localhost') }}"
+gitlab_monitor['listen_port'] = "{{ gitlab_monitor_listen_port | default('9168') }}"
+{% endif %}
+{% if gitlab_prometheus_monitoring_enable is defined %}
+# To completely disable prometheus, and all of it's exporters, set to false
+prometheus_monitoring['enable'] = true
+{% endif %}
+
+{% if gitlab_logrotate_enable is defined %}
+
+# Gitlab Logrotate
+# Docs: https://docs.gitlab.com/omnibus/settings/logs.html#logrotate
+logrotate['enable'] = "{{ gitlab_logrotate_enable | default('true') }}"
+logging['logrotate_frequency'] = "{{ gitlab_logrotate_frequency | default('daily') }}"
+logging['logrotate_size'] = "{{ gitlab_logrotate_size | default('') }}"
+logging['logrotate_rotate'] = "{{ gitlab_logrotate_rotate | default(30) }}"
+logging['logrotate_compress'] = "{{ gitlab_logrotate_compress | default('compress') }}"
+logging['logrotate_method'] = "{{ gitlab_logrotate_method | default('copytruncate') }}"
+logging['logrotate_postrotate'] = "{{ gitlab_logrotate_postrotate | default('') }}"
+{% if gitlab_logrotate_dateformat is defined %}
+logging['logrotate_dateformat'] = "{{ gitlab_logrotate_dateformat }}"
+{% endif %}
+{% endif %}
+{% if gitlab_svlogd_size    is defined or
+      gitlab_svlogd_num     is defined or
+      gitlab_svlogd_timeout is defined or
+      gitlab_svlogd_filter  is defined or
+      gitlab_svlogd_udp     is defined or
+      gitlab_svlogd_prefix  is defined %}
+
+# GitLab Logging
+# docs: https://docs.gitlab.com/omnibus/settings/logs.html
+logging['svlogd_size'] = "{{ gitlab_svlogd_size | default('200 * 1024 * 1024') }}"
+logging['svlogd_num'] = "{{ gitlab_svlogd_num | default(30) }}"
+logging['svlogd_timeout'] = "{{ gitlab_svlogd_timeout | default('24 * 60 * 60') }}"
+logging['svlogd_filter'] = "{{ gitlab_svlogd_filter | default('gzip') }}"
+logging['svlogd_udp'] = "{{ gitlab_svlogd_udp | default('') }}"
+logging['svlogd_prefix'] = "{{ gitlab_svlogd_prefix | default('') }}"
 {% endif %}
 
 # To change other settings, see:
